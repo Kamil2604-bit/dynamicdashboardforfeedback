@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Institution Trainer Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        
+        .auth-status { position: absolute; top: 20px; right: 20px; display: flex; align-items: center; gap: 10px; z-index: 100; }
+        #logged-in-user { font-weight: bold; color: #1e293b; background: white; padding: 8px 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .btn-logout { background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+        .btn-logout:hover { background: #c0392b; }
+
+        .header-container { text-align: center; margin-bottom: 25px; margin-top: 30px; }
+        .dynamic-title { font-size: 32px; font-weight: bold; color: #2c3e50; background: transparent; border: none; text-align: center; width: 75%; padding: 5px; outline: none; transition: border 0.3s; }
+        .dynamic-title.editable { border-bottom: 2px dashed #b2bec3; cursor: text; }
+        .dynamic-title.editable:focus { border-bottom: 2px solid #3498db; }
+        
+        #login-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(44, 62, 80, 0.95); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .login-box { background: white; padding: 35px; border-radius: 12px; width: 340px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .login-box input { width: 100%; padding: 12px; margin: 12px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        .login-box button { width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .login-box button:hover { background: #2980b9; }
+
+        .controls-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .control-input { padding: 12px; width: 260px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
+        .control-input:focus { border-color: #3498db; }
+        .btn-clear { background: #64748b; padding: 12px 20px; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-clear:hover { background: #475569; }
+
+        .upload-section { background: #fff; padding: 25px; text-align: center; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .action-container { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+        .btn-action { padding: 12px 18px; font-size: 14px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; color: white; transition: opacity 0.2s; }
+        .btn-action:hover { opacity: 0.9; }
+        .btn-pdf { background-color: #e74c3c; }
+        .btn-excel { background-color: #27ae60; }
+        
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; max-width: 1200px; margin: 0 auto; display: none; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .full-width { grid-column: span 2; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #1e293b; color: white; }
+        tr:hover { background-color: #f8fafc; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; flex-wrap: wrap; }
+        .tab-button { padding: 10px 20px; cursor: pointer; border: none; background: #e2e8f0; border-radius: 6px; font-weight: bold; color: #475569; transition: background 0.3s; }
+        .tab-button.active { background: #3498db; color: white; }
+        
+        .trainer-feedback { padding: 20px; background: #f8fafc; border-left: 5px solid #3498db; border-radius: 6px; margin-bottom: 15px; }
+        .trainer-feedback h3 { margin: 0 0 5px 0; color: #1e293b; }
+        .trainer-feedback p.rating { font-weight: bold; color: #16a34a; margin: 0; }
+        
+        .sentiment-box { background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .sentiment-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .sentiment-icon { font-size: 28px; }
+        .sentiment-title { font-size: 16px; font-weight: bold; }
+        .layman-text { margin: 0; color: #475569; line-height: 1.6; font-size: 14.5px; }
+
+        .footer-credits { text-align: center; margin-top: 60px; padding: 25px; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; font-weight: 600; letter-spacing: 0.5px; }
+
+        @media print {
+            body { background-color: white; margin: 0; padding: 0; }
+            #login-modal, .upload-section, .action-container, .tabs, .controls-container, .footer-credits, .auth-status { display: none !important; }
+            .dashboard { display: grid !important; }
+            .card { box-shadow: none; border: 1px solid #e2e8f0; break-inside: avoid; }
+            .dynamic-title { border: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="auth-status" class="auth-status" style="display:none;">
+        <span id="logged-in-user"></span>
+        <button onclick="executeLogout()" class="btn-logout">Logout</button>
+    </div>
+
+    <div id="login-modal">
+        <div class="login-box">
+            <h2 style="color: #1e293b; margin-top:0; font-size: 24px;">System Login</h2>
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="executeLogin()">Access Dashboard</button>
+        </div>
+    </div>
+
+    <div class="header-container">
+        <input type="text" id="dashboard-title" class="dynamic-title" value="Training Program - Session Feedback Dashboard" placeholder="Rename Dashboard Scope..." readonly>
+    </div>
+    
+    <div class="upload-section" id="upload-section" style="display:none;">
+        <h3>Ingest Feedback Matrix Logs</h3>
+        <input type="file" id="excel-file" accept=".xlsx, .xls" />
+    </div>
+
+    <div class="controls-container" id="controls-container" style="display:none;">
+        <input type="text" id="trainer-search" class="control-input" placeholder="🔍 Type Trainer Name..." onkeyup="runPipelineFilter()">
+        <input type="date" id="date-filter" class="control-input" onchange="runPipelineFilter()">
+        <button class="btn-clear" onclick="resetPipelineFilter()">Reset Filters</button>
+    </div>
+
+    <div class="action-container" id="action-container" style="display:none;">
+        <button class="btn-action btn-pdf" onclick="window.print()">📥 Print/Save Layout PDF</button>
+        <button class="btn-action btn-excel" onclick="exportAnalyticsToExcel()">📊 Extract Compiled Excel</button>
+    </div>
+    
+    <div class="dashboard" id="dashboard-container">
+        <div class="card full-width">
+            <h2>Live Trainer Evaluation Metrics</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trainer Identity</th>
+                        <th>Feedback Count</th>
+                        <th>Mean Rating (Scale 1-5)</th>
+                    </tr>
+                </thead>
+                <tbody id="overallTableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Aggregate Summary Ratios</h2>
+            <canvas id="overallChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h2>Day-Wise Performance Distribution</h2>
+            <canvas id="dayWiseChart"></canvas>
+        </div>
+
+        <div class="card full-width">
+            <h2>Historical Timeline Progress Records</h2>
+            <canvas id="trendChart"></canvas>
+        </div>
+
+        <div class="card full-width">
+            <h2>Detailed Topic Analytics & Layman Breakdown</h2>
+            <div class="tabs" id="dynamic-tabs-container"></div>
+            <div id="tab-content" class="tab-content"></div>
+        </div>
+    </div>
+
+    <div class="footer-credits">
+        All Rights Reserved. Managed and Developed by Mohd Kamil.
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+        let overallChartInstance = null, dayWiseChartInstance = null, trendChartInstance = null;
+        let feedbackDataBySubject = {}, globalExportData = [], datasetRegistry = [];
+        let allSubjectsSet = new Set(['Both']);
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedTitle = localStorage.getItem('dashboardTitle');
+            if (savedTitle) {
+                document.getElementById('dashboard-title').value = savedTitle;
+            }
+            const savedRole = localStorage.getItem('dashboardRole');
+            if (savedRole) {
+                setupWorkspace(savedRole);
+            } else {
+                document.getElementById('login-modal').style.display = 'flex';
+            }
+        });
+
+        document.getElementById('dashboard-title').addEventListener('input', function(e) {
+            localStorage.setItem('dashboardTitle', e.target.value);
+        });
+
+        function executeLogin() {
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value.trim();
+
+            let targetRole = null;
+            if (user === 'admin' && pass === 'admin123') targetRole = 'admin';
+            else if (user === 'user' && pass === 'user123') targetRole = 'user';
+
+            if (!targetRole) {
+                alert('Access Denied: Invalid Credentials');
+                return;
+            }
+            localStorage.setItem('dashboardRole', targetRole);
+            setupWorkspace(targetRole);
+        }
+
+        function executeLogout() {
+            localStorage.removeItem('dashboardRole');
+            window.location.reload();
+        }
+
+        function setupWorkspace(role) {
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('controls-container').style.display = 'flex';
+            document.getElementById('auth-status').style.display = 'flex';
+            const titleInput = document.getElementById('dashboard-title');
+
+            if (role === 'admin') {
+                document.getElementById('upload-section').style.display = 'block';
+                document.getElementById('logged-in-user').innerText = '👤 Admin Access';
+                titleInput.readOnly = false;
+                titleInput.classList.add('editable');
+                titleInput.title = "Click to edit the dashboard title";
+            } else {
+                document.getElementById('upload-section').style.display = 'none';
+                document.getElementById('logged-in-user').innerText = '👤 User Access';
+                titleInput.readOnly = true;
+                titleInput.classList.remove('editable');
+                titleInput.title = "";
+            }
+            fetchPipelineData();
+        }
+
+        async function fetchPipelineData() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/dashboard-data/`);
+                if (!response.ok) throw new Error("API stream connection broken");
+                datasetRegistry = await response.json();
+                
+                if (datasetRegistry.length > 0) {
+                    identifyDynamicSubjects(datasetRegistry);
+                    renderPipelineMetrics(datasetRegistry);
+                }
+            } catch (error) {
+                console.error("Local stack retrieval fault:", error);
+            }
+        }
+
+        function identifyDynamicSubjects(data) {
+            allSubjectsSet = new Set(['Both']);
+            data.forEach(row => {
+                if (row.Subject && row.Subject !== "nan" && row.Subject !== "") {
+                    allSubjectsSet.add(row.Subject);
+                }
+            });
+            buildDynamicTabs();
+        }
+
+        function buildDynamicTabs() {
+            const tabsContainer = document.getElementById('dynamic-tabs-container');
+            tabsContainer.innerHTML = '';
+            
+            allSubjectsSet.forEach(subj => {
+                const safeId = subj.replace(/[^a-zA-Z0-9]/g, '-');
+                const btn = document.createElement('button');
+                btn.className = 'tab-button';
+                btn.id = 'btn-' + safeId;
+                btn.innerText = subj === 'Both' ? 'Unified Evaluation Logs' : `${subj} Segment`;
+                btn.onclick = () => switchSubjectView(subj, safeId);
+                if(subj === 'Both') btn.classList.add('active');
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        function runPipelineFilter() {
+            const searchVal = document.getElementById('trainer-search').value.toLowerCase().trim();
+            const dateVal = document.getElementById('date-filter').value;
+            const structuredSet = datasetRegistry.filter(entry => {
+                const contextName = entry.Trainer.toLowerCase().includes(searchVal);
+                const contextCalendar = dateVal ? entry.Date === dateVal : true;
+                return contextName && contextCalendar;
+            });
+            renderPipelineMetrics(structuredSet);
+        }
+
+        function resetPipelineFilter() {
+            document.getElementById('trainer-search').value = '';
+            document.getElementById('date-filter').value = '';
+            renderPipelineMetrics(datasetRegistry);
+        }
+
+        document.getElementById('excel-file').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const payload = new FormData();
+            payload.append("file", file);
+            try {
+                const res = await fetch(`${API_BASE_URL}/upload-feedback/`, { method: "POST", body: payload });
+                const log = await res.json();
+                alert(log.message);
+                fetchPipelineData(); 
+            } catch (err) {
+                alert("File absorption error across network ports.");
+            }
+        });
+
+        function analyzeFeedbackTemperature(difficulties, remarks) {
+            const combinedText = [...difficulties, ...remarks].join(" ").toLowerCase();
+            if (!combinedText.trim() || combinedText === "nan") {
+                return `<div class="sentiment-box"><p class="layman-text" style="font-style:italic;">No textual feedback was provided by the students yet.</p></div>`;
+            }
+
+            let sentimentScore = 0;
+            let detectedIssues = new Set();
+            
+            const issueKeywords = {
+                'fast': 'the pace being too fast',
+                'speed': 'the pace being too fast',
+                'slow': 'the pace being too slow',
+                'basic': 'the content feeling too basic',
+                'code': 'wanting more coding practice',
+                'practical': 'wanting more practical implementation',
+                'voice': 'the trainer\\'s voice being too low (needs a mic)',
+                'mic': 'the trainer needing a microphone',
+                'understand': 'difficulty understanding certain concepts',
+                'python': 'confusion regarding programming languages (Python vs Java/C++)',
+                'c++': 'confusion regarding programming languages (C++ vs Java)',
+                'change': 'requesting a change of trainer',
+                'confus': 'feeling confused about the logic'
+            };
+
+            const positiveKeywords = ['good', 'excellent', 'great', 'nice', 'clear', 'perfect', 'well', 'helpful', 'interactive'];
+
+            for (const [key, plainText] of Object.entries(issueKeywords)) {
+                if (combinedText.includes(key)) {
+                    if (key === 'understand' && !combinedText.match(/not\\sunderstand|hard\\sto\\sunderstand|didn't\\sunderstand/)) continue;
+                    detectedIssues.add(plainText);
+                    sentimentScore -= 1;
+                }
+            }
+
+            positiveKeywords.forEach(word => {
+                if (combinedText.includes(word)) sentimentScore += 1;
+            });
+
+            if (/(nothing|no\\b|none|na\\b|nope|all good|all clear)/.test(difficulties.join(" ").toLowerCase())) {
+                sentimentScore += 2;
+            }
+
+            let tempIcon, tempLabel, tempColor, laymanSummary;
+            if (sentimentScore >= 2) {
+                tempIcon = "🔥";
+                tempLabel = "Hot (Highly Positive)";
+                tempColor = "#e67e22";
+                laymanSummary = "Overall, students are really enjoying this trainer's sessions. The delivery is clear, and the vast majority of students aren't facing any major roadblocks or difficulties.";
+            } else if (sentimentScore < 0) {
+                tempIcon = "❄️";
+                tempLabel = "Cold (Needs Attention)";
+                tempColor = "#3498db";
+                laymanSummary = "Students are struggling here. The trainer needs to make some adjustments to improve the classroom experience based on student complaints.";
+            } else {
+                tempIcon = "🌤️";
+                tempLabel = "Warm (Neutral/Mixed)";
+                tempColor = "#f1c40f";
+                laymanSummary = "The feedback is quite mixed. While the session is generally okay, there are a few bumps that could be smoothed out for a much better experience.";
+            }
+
+            let actionableText = "";
+            if (detectedIssues.size > 0) {
+                const issuesList = Array.from(detectedIssues).join(", ");
+                actionableText = `<br><br><strong>📌 Key issues to fix:</strong> Students specifically mentioned <b>${issuesList}</b>.`;
+            } else if (sentimentScore >= 2) {
+                actionableText = `<br><br><strong>📌 Key issues to fix:</strong> None reported! Everything is running smoothly.`;
+            }
+
+            return `
+                <div class="sentiment-box">
+                    <div class="sentiment-header">
+                        <span class="sentiment-icon">${tempIcon}</span>
+                        <span class="sentiment-title" style="color: ${tempColor};">Sentiment Temperature: ${tempLabel}</span>
+                    </div>
+                    <p class="layman-text"><strong>In Layman's Terms:</strong> ${laymanSummary} ${actionableText}</p>
+                </div>
+            `;
+        }
+
+        function switchSubjectView(subjectName, safeId) {
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            document.getElementById('btn-' + safeId).classList.add('active');
+            
+            const box = document.getElementById('tab-content');
+            box.innerHTML = '';
+            
+            const targetMap = feedbackDataBySubject[subjectName];
+            if (!targetMap || Object.keys(targetMap).length === 0) {
+                box.innerHTML = '<p style="color:#64748b; font-style:italic; padding:10px;">No operational logs track into this category layout matching active query values.</p>';
+                return;
+            }
+
+            Object.keys(targetMap).map(id => ({
+                id, values: targetMap[id], mean: (targetMap[id].sum / targetMap[id].count).toFixed(2)
+            })).sort((x, y) => y.mean - x.mean).forEach(t => {
+                const laymanAnalyticsHTML = analyzeFeedbackTemperature(t.values.difficulties, t.values.remarks);
+                box.innerHTML += `
+                    <div class="trainer-feedback">
+                        <h3>${t.id}</h3>
+                        <p class="rating">Overall Average Rating: ${t.mean} / 5.00</p>
+                        ${laymanAnalyticsHTML}
+                    </div>`;
+            });
+        }
+
+        function exportAnalyticsToExcel() {
+            if (globalExportData.length === 0) return;
+            const book = XLSX.utils.book_new();
+            const sheet = XLSX.utils.json_to_sheet(globalExportData);
+            XLSX.utils.book_append_sheet(book, sheet, "Evaluation Summary");
+            XLSX.writeFile(book, "Trainer_Metric_Export.xlsx");
+        }
+
+        function renderPipelineMetrics(payloadData) {
+            let coreStats = {}, chronologicalStats = {};
+            let calendarMap = { "Monday": {}, "Tuesday": {}, "Wednesday": {}, "Thursday": {}, "Friday": {}, "Saturday": {}, "Sunday": {} };
+            
+            feedbackDataBySubject = {};
+            allSubjectsSet.forEach(s => feedbackDataBySubject[s] = {});
+
+            payloadData.forEach(item => {
+                let contextSubject = (item.Subject && item.Subject !== "nan") ? item.Subject : 'Unknown';
+                let dayName = new Date(item.Date).toLocaleDateString('en-US', { weekday: 'long' });
+                let scaleVal = Number(item.Rating) || 0;
+                let identification = item.Trainer;
+
+                if (!coreStats[identification]) coreStats[identification] = { sum: 0, count: 0 };
+                coreStats[identification].sum += scaleVal;
+                coreStats[identification].count += 1;
+
+                if (!chronologicalStats[item.Date]) chronologicalStats[item.Date] = {};
+                if (!chronologicalStats[item.Date][identification]) chronologicalStats[item.Date][identification] = { sum: 0, count: 0 };
+                chronologicalStats[item.Date][identification].sum += scaleVal;
+                chronologicalStats[item.Date][identification].count += 1;
+                
+                if (calendarMap[dayName]) {
+                    if (!calendarMap[dayName][identification]) calendarMap[dayName][identification] = { sum: 0, count: 0 };
+                    calendarMap[dayName][identification].sum += scaleVal;
+                    calendarMap[dayName][identification].count += 1;
+                }
+
+                [contextSubject, 'Both'].forEach(subj => {
+                    if (!feedbackDataBySubject[subj][identification]) {
+                        feedbackDataBySubject[subj][identification] = { sum: 0, count: 0, difficulties: [], remarks: [] };
+                    }
+                    feedbackDataBySubject[subj][identification].sum += scaleVal;
+                    feedbackDataBySubject[subj][identification].count += 1;
+                    
+                    if (item.Difficulties && item.Difficulties.trim() !== '' && item.Difficulties.toLowerCase() !== 'nan') {
+                        feedbackDataBySubject[subj][identification].difficulties.push(item.Difficulties.trim());
+                    }
+                    if (item.Remarks && item.Remarks.trim() !== '' && item.Remarks.toLowerCase() !== 'nan') {
+                        feedbackDataBySubject[subj][identification].remarks.push(item.Remarks.trim());
+                    }
+                });
+            });
+
+            let trackingArray = Object.keys(coreStats).map(key => ({
+                Key: key, Total: coreStats[key].count, Average: (coreStats[key].sum / coreStats[key].count).toFixed(2)
+            })).sort((a, b) => b.Average - a.Average);
+
+            globalExportData = trackingArray.map(item => ({
+                "Trainer Designation": item.Key,
+                "Total Forms Ingested": item.Total,
+                "Calculated Evaluation Score": Number(item.Average)
+            }));
+
+            document.getElementById('dashboard-container').style.display = 'grid';
+            document.getElementById('action-container').style.display = 'flex';
+            switchSubjectView('Both', 'Both');
+
+            const tableBody = document.getElementById('overallTableBody');
+            tableBody.innerHTML = trackingArray.length === 0 ? '<tr><td colspan="3" style="text-align:center;">No matching database metrics map to selected criteria.</td></tr>' : '';
+
+            trackingArray.forEach(row => {
+                tableBody.innerHTML += `<tr><td><strong>${row.Key}</strong></td><td>${row.Total} records</td><td><span style="color:#16a34a; font-weight:bold;">${row.Average}</span> / 5.00</td></tr>`;
+            });
+
+            const layoutColors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#34495e'];
+            const clearLabels = trackingArray.map(entry => entry.Key);
+
+            if (overallChartInstance) overallChartInstance.destroy();
+            overallChartInstance = new Chart(document.getElementById('overallChart'), {
+                type: 'bar',
+                data: { labels: clearLabels, datasets: [{ data: trackingArray.map(d => d.Average), backgroundColor: layoutColors }] },
+                options: { scales: { y: { beginAtZero: true, max: 5 } }, plugins: { legend: { display: false } } }
+            });
+
+            const calendarSequences = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+            const calendarPayloads = clearLabels.map((tag, idx) => ({
+                label: tag,
+                data: calendarSequences.map(day => {
+                    let log = calendarMap[day][tag];
+                    return log ? (log.sum / log.count).toFixed(2) : null;
+                }),
+                backgroundColor: layoutColors[idx % layoutColors.length]
+            }));
+
+            if (dayWiseChartInstance) dayWiseChartInstance.destroy();
+            dayWiseChartInstance = new Chart(document.getElementById('dayWiseChart'), {
+                type: 'bar',
+                data: { labels: calendarSequences, datasets: calendarPayloads },
+                options: { scales: { y: { beginAtZero: true, max: 5 } } }
+            });
+
+            const chronolables = Object.keys(chronologicalStats).sort();
+            const historicalLines = clearLabels.map((tag, idx) => ({
+                label: tag,
+                data: chronolables.map(date => {
+                    let node = chronologicalStats[date][tag];
+                    return node ? (node.sum / node.count).toFixed(2) : null;
+                }),
+                borderColor: layoutColors[idx % layoutColors.length],
+                backgroundColor: layoutColors[idx % layoutColors.length],
+                tension: 0.2,
+                spanGaps: true
+            }));
+
+            if (trendChartInstance) trendChartInstance.destroy();
+            trendChartInstance = new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: { labels: chronolables, datasets: historicalLines },
+                options: { scales: { y: { beginAtZero: true, max: 5 } } }
+            });
+        }
+    </script>
+</body>
+</html>
