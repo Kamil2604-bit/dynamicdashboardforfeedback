@@ -32,7 +32,7 @@
         .btn-clear { background: #64748b; padding: 12px 20px; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .btn-clear:hover { background: #475569; }
 
-        .upload-section { background: #fff; padding: 25px; text-align: center; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .upload-section { background: #fff; padding: 25px; text-align: center; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: 2px dashed #3498db; }
         .action-container { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px; max-width: 1200px; margin-left: auto; margin-right: auto; }
         .btn-action { padding: 12px 18px; font-size: 14px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; color: white; transition: opacity 0.2s; }
         .btn-action:hover { opacity: 0.9; }
@@ -93,7 +93,7 @@
     </div>
     
     <div class="upload-section" id="upload-section" style="display:none;">
-        <h3>Ingest Feedback Matrix Logs</h3>
+        <h3 style="margin-top:0; color:#2c3e50;">Ingest Feedback Matrix Logs</h3>
         <input type="file" id="excel-file" accept=".xlsx, .xls" />
     </div>
 
@@ -218,15 +218,29 @@
         async function fetchPipelineData() {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/dashboard-data/`);
-                if (!response.ok) throw new Error("API stream connection broken");
+                if (!response.ok) {
+                    alert("Database Connection Error. Please verify your Render configuration.");
+                    return;
+                }
+                
                 datasetRegistry = await response.json();
+                
+                // ALWAYS display the dashboard frame, even if empty, so the user knows it loaded
+                document.getElementById('dashboard-container').style.display = 'grid';
+                document.getElementById('action-container').style.display = 'flex';
                 
                 if (datasetRegistry.length > 0) {
                     identifyDynamicSubjects(datasetRegistry);
                     renderPipelineMetrics(datasetRegistry);
+                } else {
+                    // Clearly show that the database is working, but has no files yet
+                    document.getElementById('overallTableBody').innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 30px; font-size: 16px;"><b>Database is ready and empty!</b><br>Please use the Upload section above to insert your Excel file.</td></tr>';
+                    document.getElementById('dynamic-tabs-container').innerHTML = '';
+                    document.getElementById('tab-content').innerHTML = '';
                 }
             } catch (error) {
                 console.error("Local stack retrieval fault:", error);
+                alert("Network Error: Could not reach the API.");
             }
         }
 
@@ -279,12 +293,19 @@
             const payload = new FormData();
             payload.append("file", file);
             try {
+                // Visual feedback during upload
+                const btn = document.getElementById('upload-section');
+                btn.style.opacity = '0.5';
+                
                 const res = await fetch(`${API_BASE_URL}/upload-feedback/`, { method: "POST", body: payload });
                 const log = await res.json();
+                
+                btn.style.opacity = '1';
                 alert(log.message);
                 fetchPipelineData(); 
             } catch (err) {
-                alert("File absorption error across network ports.");
+                alert("File absorption error. Please try again.");
+                document.getElementById('upload-section').style.opacity = '1';
             }
         });
 
@@ -456,10 +477,6 @@
                 "Calculated Evaluation Score": Number(item.Average)
             }));
 
-            document.getElementById('dashboard-container').style.display = 'grid';
-            document.getElementById('action-container').style.display = 'flex';
-            switchSubjectView('Both', 'Both');
-
             const tableBody = document.getElementById('overallTableBody');
             tableBody.innerHTML = trackingArray.length === 0 ? '<tr><td colspan="3" style="text-align:center;">No matching database metrics map to selected criteria.</td></tr>' : '';
 
@@ -513,6 +530,8 @@
                 data: { labels: chronolables, datasets: historicalLines },
                 options: { scales: { y: { beginAtZero: true, max: 5 } } }
             });
+            
+            switchSubjectView('Both', 'Both');
         }
     </script>
 </body>
