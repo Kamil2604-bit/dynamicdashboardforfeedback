@@ -1,0 +1,6 @@
+gniot_dashboard.db
+*.sqlite3
+__pycache__/
+*.xlsx
+*.xls
+.env
