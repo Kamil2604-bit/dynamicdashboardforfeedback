@@ -19,10 +19,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve the static folder
+# Serve the static folder so CSS/JS and the HTML file can be accessed
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Explicitly serve dashboard.html at the root URL
+# Explicitly serve dashboard.html when users visit your main web link
 @app.get("/")
 async def serve_frontend():
     return FileResponse("static/dashboard.html")
