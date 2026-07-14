@@ -150,7 +150,9 @@
     </div>
 
     <script>
+        // The Trap Fix: Automatically links to wherever the site is hosted
         const API_BASE_URL = window.location.origin;
+        
         let overallChartInstance = null, dayWiseChartInstance = null, trendChartInstance = null;
         let feedbackDataBySubject = {}, globalExportData = [], datasetRegistry = [];
         let allSubjectsSet = new Set(['Both']);
@@ -225,7 +227,6 @@
                 
                 datasetRegistry = await response.json();
                 
-                // ALWAYS display the dashboard frame, even if empty, so the user knows it loaded
                 document.getElementById('dashboard-container').style.display = 'grid';
                 document.getElementById('action-container').style.display = 'flex';
                 
@@ -233,7 +234,6 @@
                     identifyDynamicSubjects(datasetRegistry);
                     renderPipelineMetrics(datasetRegistry);
                 } else {
-                    // Clearly show that the database is working, but has no files yet
                     document.getElementById('overallTableBody').innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 30px; font-size: 16px;"><b>Database is ready and empty!</b><br>Please use the Upload section above to insert your Excel file.</td></tr>';
                     document.getElementById('dynamic-tabs-container').innerHTML = '';
                     document.getElementById('tab-content').innerHTML = '';
@@ -293,7 +293,6 @@
             const payload = new FormData();
             payload.append("file", file);
             try {
-                // Visual feedback during upload
                 const btn = document.getElementById('upload-section');
                 btn.style.opacity = '0.5';
                 
